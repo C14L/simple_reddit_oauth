@@ -1,7 +1,7 @@
 import re
 from django.conf import settings
 from django.test import TestCase
-from .models import RedditUser
+from . import api
 
 
 class RedditUserTestCase(TestCase):
@@ -25,7 +25,7 @@ class RedditUserTestCase(TestCase):
         parameters.
         """
         mock_request = {'session': {}}
-        url = RedditUser.make_authorization_url(mock_request)
+        url = api.make_authorization_url(mock_request)
         vals = ["scope=" + settings.OAUTH_REDDIT_SCOPE,
                 "client_id=" + settings.OAUTH_REDDIT_CLIENT_ID,
                 "redirect_uri=" + settings.OAUTH_REDDIT_REDIRECT_URI]

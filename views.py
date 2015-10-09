@@ -1,13 +1,9 @@
 
 from . import api
-from time import time as unixtime
-# from django.shortcuts import render
 from django.conf import settings
 from django.contrib.auth import authenticate, login
 from django.http import HttpResponse
 from django.shortcuts import redirect
-# from django.views.decorators.csrf import csrf_exempt
-# from .models import RedditUser
 
 
 def login_view(request):
@@ -66,28 +62,3 @@ def reddit_callback_view(request):
         # No access_token received, maybe the user denied access.
         print(pfx + "Invalid access_token.")
         return redirect(settings.OAUTH_REDDIT_REDIRECT_AUTH_ERROR)
-
-
-def private_area(request):
-    user = api.get_user(request)
-    if not user:
-        return redirect(settings.OAUTH_REDDIT_REDIRECT_AUTH_ERROR)
-    sr_list = api.get_sr_subscriber(request)
-
-    s = '<h1>Hello, {}!</h1><hr>'.format(user['name'])
-    t0 = ('access_token: {} -- now {} -- secs.left: {}' +
-          ' -- <a href="/account/delete/">delete account</a>')
-    s += t0.format(request.session['expires'], int(unixtime()),
-                   request.session['expires'] - int(unixtime()))
-    s += '<hr><ul>'
-    for sr in sr_list:
-        t1 = '<a href="https://www.reddit.com{}">{}</a>'
-        t1 = t1.format(sr['url'], sr['display_name'])
-        t2 = ' contrib ' if sr['user_is_contributor'] else ' '
-        t2 += ' mod ' if sr['user_is_moderator'] else ' '
-        t2 += ' subscr ' if sr['user_is_subscriber'] else ' '
-        t2 += ' banned ' if sr['user_is_banned'] else ' '
-        t2 += ' muted ' if sr['user_is_banned'] else ' '
-        s += '<li>{} {}</li>'.format(t1, t2)
-    s += '</ul>'
-    return HttpResponse(s)

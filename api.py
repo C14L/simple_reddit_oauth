@@ -1,6 +1,4 @@
-"""
-
-"""
+"""Handle all Reddit API calls."""
 
 import requests
 import requests.auth
@@ -11,16 +9,19 @@ from django.conf import settings
 from django.contrib.auth import logout
 
 
-def get_token(request):
+def get_token(request, refresh=False):
     """
     Return an access_token, either from session storage or get a
     fresh one from the Reddit API. If there is a "code" parameter
-    in the request GET values, then always refresh the access_token
-    value in the session storage.
+    in the request GET values, then refresh the cached access_token
+    value.
+
+    Call with refresh=True to refresh an existing access_token.
     """
     pfx = "--> get_token() --> "
-    print(pfx + "Fetch access_token for session {}".format(
+    print(pfx + "Find access_token for session with key '{}'".format(
         request.session.session_key))
+
     api_url = "https://ssl.reddit.com/api/v1/access_token"
     is_expired = (request.session.get('expires', 0) < int(unixtime()))
     headers = settings.OAUTH_REDDIT_BASE_HEADERS
@@ -32,10 +33,10 @@ def get_token(request):
         print(pfx + "Using authorization_code for first time auth.")
         # Received an access code to get a new access_token. Use
         # this above anything else.
-        post_data = {
-            "grant_type": "authorization_code",
-            "code": request.GET.get('code'),
-            "redirect_uri": settings.OAUTH_REDDIT_REDIRECT_URI}
+
+        post_data = {"grant_type": "authorization_code",
+                     "code": request.GET.get('code'),
+                     "redirect_uri": settings.OAUTH_REDDIT_REDIRECT_URI}
         response = requests.post(api_url, auth=client_auth,
                                  headers=headers, data=post_data)
         t = response.json()
@@ -45,19 +46,16 @@ def get_token(request):
         request.session['expires'] = (int(unixtime()) +
                                       int(t.get('expires_in', 0)))
         request.session['scope'] = t.get('scope', '')
-        print(pfx + "Storing all in request.session:")
-        print(request.session)
-        print('----------------------------')
-        print(pfx + "Initial access_token acquired: '{}'".format(
-            request.session['access_token']))
+        print(pfx + "Initial access_token acquired.")
 
-    elif is_expired and request.session.get('refresh_token', False):
+    elif (refresh or is_expired) and \
+            request.session.get('refresh_token', False):
+
         print(pfx + "Using refresh_token to acquire new access_token.")
-        # The previous access_token is expired, but we have a
-        # refresh_token to get a new one.
-        post_data = {
-            "grant_type": "refresh_token",
-            "refresh_token": request.session.get('refresh_token')}
+        # The previous access_token is expired, use refresh_token to
+        # get a new one.
+        post_data = {"grant_type": "refresh_token",
+                     "refresh_token": request.session.get('refresh_token')}
         response = requests.post(api_url, auth=client_auth,
                                  headers=headers, data=post_data)
         t = response.json()
@@ -66,16 +64,26 @@ def get_token(request):
         request.session['expires'] = (int(unixtime()) +
                                       int(t.get('expires_in', 0)))
         request.session['scope'] = t.get('scope', '')
-        print(pfx + "New access_token acquired: '{}'".format(
-            request.session['access_token']))
+        print(pfx + "New access_token acquired.")
     else:
         if request.session.get('access_token', False):
-            print(pfx + "Re-using cached access_token: '{}'".format(
-                request.session.get('access_token')))
+            print(pfx + "Re-using cached access_token.")
         else:
-            print(pfx + "No access_token found anywhere! Return False.")
+            print(pfx + "No access_token found anywhere!")
 
-    return request.session.get('access_token', False)
+    # If there is an access_token now, return it. Or wipe session vals.
+    if request.session.get('access_token', False):
+        print(pfx + "Returning access_token: '{}'".format(
+                request.session.get('access_token')))
+        return request.session.get('access_token')
+    else:
+        print(pfx + "Deleting all related session values.")
+        request.session['access_token'] = None
+        request.session['refresh_token'] = None
+        request.session['token_type'] = None
+        request.session['expires'] = 0
+        request.session['scope'] = None
+        return False
 
 
 def delete_token(request):
@@ -144,20 +152,38 @@ def cleanup_sr_list(raw_sr_list):
     return subreddits
 
 
-def api_query(request, api_url):
-    pfx = "--> api_query() --> "
-    print(pfx + "Fetch access_token...")
-    access_token = get_token(request)
+def _api_query_dispatch(access_token, api_url):
+    pfx = "--> _api_query_dispatch() --> "
+    response = False
+    print(pfx + "Dispatch API query.")
     if access_token:
-        print(pfx + "Valid! Now fetch from API {}".format(api_url))
+        print(pfx + "Fetch from Reddit API '{}'".format(api_url))
         headers = settings.OAUTH_REDDIT_BASE_HEADERS
         headers.update({"Authorization": "bearer " + access_token})
         response = requests.get(api_url, headers=headers)
         print(pfx + "Returned status {}".format(response.status_code))
-        if response.status_code == 200:
-            print(pfx + "Received data fields: {}".format(
-                response.json().keys()))
-            return response.json()
+    print(pfx + "Done, returning response.")
+    return response
+
+
+def api_query(request, api_url):
+    pfx = "--> api_query() --> "
+    print(pfx + "Fetch access_token...")
+    access_token = get_token(request)
+    response = _api_query_dispatch(access_token, api_url)
+
+    if not response or response.status_code == 401:
+        # Access denied! Get a fresh access_token and try again.
+        print(pfx + "Received 401 code, force access_token update!")
+        access_token = get_token(request, refresh=True)
+        print(pfx + "New access_token: '{}'.".format(access_token))
+        response = _api_query_dispatch(access_token, api_url)
+
+    if response and response.status_code == 200:
+        print(pfx + "Received data fields: {}".format(
+            response.json().keys()))
+        return response.json()
+
     print(pfx + "Invalid access_token or status code returned.")
     return False
 
@@ -178,7 +204,7 @@ def get_karma(request):
 
 
 def get_sr_subscriber(request):
-    api_url = "https://oauth.reddit.com/subreddits/mine/subscriber"
+    api_url = "https://oauth.reddit.com/subreddits/mine/subscriber?limit=100"
     return cleanup_sr_list(api_query(request, api_url))
 
 
