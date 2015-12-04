@@ -154,30 +154,30 @@ def cleanup_sr_list(raw_sr_list):
     return subreddits
 
 
-def _api_query_dispatch(access_token, api_url):
+def _api_query_dispatch(access_token, api_url, params=None):
     response = False
     logger.info("Dispatch API query.")
     if access_token:
         logger.info("Fetch from Reddit API '%s'", api_url)
         headers = settings.OAUTH_REDDIT_BASE_HEADERS
         headers.update({"Authorization": "bearer " + access_token})
-        response = requests.get(api_url, headers=headers)
+        response = requests.get(api_url, headers=headers, params=params)
         logger.info("Returned status %s", response.status_code)
     logger.info("Done, returning response.")
     return response
 
 
-def api_query(request, api_url):
+def api_query(request, api_url, params=None):
     logger.info("Fetch access_token...")
     access_token = get_token(request)
-    response = _api_query_dispatch(access_token, api_url)
+    response = _api_query_dispatch(access_token, api_url, params)
 
     if not response or response.status_code == 401:
         # Access denied! Get a fresh access_token and try again.
         logger.info("Received 401 code, force access_token update!")
         access_token = get_token(request, refresh=True)
         logger.info("New access_token: '%s'.", access_token)
-        response = _api_query_dispatch(access_token, api_url)
+        response = _api_query_dispatch(access_token, api_url, params)
 
     if response and response.status_code == 200:
         logger.info("Received data fields: '%s'", response.json().keys())
@@ -202,9 +202,31 @@ def get_karma(request):
     return api_query(request, api_url)
 
 
-def get_sr_subscriber(request):
-    api_url = "https://oauth.reddit.com/subreddits/mine/subscriber?limit=100"
-    return cleanup_sr_list(api_query(request, api_url))
+def get_sr_subscriber(request, limit=100):
+    api_url = "https://oauth.reddit.com/subreddits/mine/subscriber"
+    params = {'limit': limit or 100}
+    response = api_query(request, api_url, params=params)
+
+    if limit and limit <= 100:
+        return cleanup_sr_list(response)
+
+    params['limit'] = 100
+    subreddits = cleanup_sr_list(response)
+    count = len(subreddits)
+    after = response.get('data', {}).get('after')
+
+    while after:
+        params['count'] = count
+        params['after'] = after
+        response = api_query(request, api_url, params=params)
+        subreddits.extend(cleanup_sr_list(response))
+        after = response.get('data', {}).get('after')
+        count = len(subreddits)
+
+        if limit and count >= limit:
+            break
+
+    return subreddits[:limit]
 
 
 def get_sr_contributor(request):
