@@ -33,18 +33,30 @@ def reddit_callback_view(request):
 
         # This will authenticate an existing user and create a new user
         # if necessary.
+        if settings.DEBUG:
+            print('Trying to authenticate Reddit user: {}'.format(reddit_user['name']))
         user = authenticate(request, reddit_user=reddit_user['name'])
 
         if user is None:
+            if settings.DEBUG:
+                print('Not able to authenticate, returned None.')
             # Return an 'invalid login' error message.
             return redirect(settings.OAUTH_REDDIT_REDIRECT_AUTH_ERROR)
         else:
+            if settings.DEBUG:
+                print('User authenticated...')
             if user.is_active:
+                if settings.DEBUG:
+                    print('...and active. Redirect to {}'.format(settings.OAUTH_REDDIT_REDIRECT_AUTH_SUCCESS))
                 login(request, user)
                 return redirect(settings.OAUTH_REDDIT_REDIRECT_AUTH_SUCCESS)
             else:
+                if settings.DEBUG:
+                    print('...but accound disabled! Redirect to {}'.format(settings.OAUTH_REDDIT_REDIRECT_AUTH_ERROR))
                 # Return a 'disabled account' error message
                 return redirect(settings.OAUTH_REDDIT_REDIRECT_AUTH_ERROR)
     else:
+        if settings.DEBUG:
+            print('U-oh, no access token, maybe user denied us access. Oh well...')
         # No access_token received, maybe the user denied access.
         return redirect(settings.OAUTH_REDDIT_REDIRECT_AUTH_ERROR)

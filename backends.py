@@ -7,7 +7,7 @@ See https://github.com/django/django/blob/master/django/contrib/auth/ba
 ckends.py --> class RemoteUserBackend
 """
 
-# from django.conf import settings
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.auth.backends import RemoteUserBackend
 
@@ -15,6 +15,12 @@ from django.contrib.auth.backends import RemoteUserBackend
 class RedditBackend(RemoteUserBackend):
 
     def authenticate(self, request, reddit_user, **kwargs):
+        if settings.DEBUG:
+            print('##### RedditBackend')
+            print('### request: {}'.format(request))
+            print('### reddit_user: {}'.format(reddit_user))
+            print('### kwargs: {}'.format(kwargs))
+
         user = None
         username = self.clean_username(reddit_user)
         UserModel = get_user_model()
