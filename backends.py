@@ -13,13 +13,12 @@ from django.contrib.auth.backends import RemoteUserBackend
 
 
 class RedditBackend(RemoteUserBackend):
-
     def authenticate(self, request, reddit_user, **kwargs):
         if settings.DEBUG:
-            print('##### RedditBackend')
-            print('### request: {}'.format(request))
-            print('### reddit_user: {}'.format(reddit_user))
-            print('### kwargs: {}'.format(kwargs))
+            print("##### RedditBackend")
+            print("### request: {}".format(request))
+            print("### reddit_user: {}".format(reddit_user))
+            print("### kwargs: {}".format(kwargs))
 
         user = None
         username = self.clean_username(reddit_user)
@@ -31,7 +30,8 @@ class RedditBackend(RemoteUserBackend):
         # instead we use get_or_create when creating unknown users since it has
         # built-in safeguards for multiple threads.
         user, created = UserModel._default_manager.get_or_create(
-            **{UserModel.USERNAME_FIELD: username})
+            **{UserModel.USERNAME_FIELD: username}
+        )
         if created:
             user = self.configure_user(user)
 

@@ -5,7 +5,6 @@ from . import api
 
 
 class RedditUserTestCase(TestCase):
-
     def test_assert_setting_reddit_api_scope_format(self):
         """
         For the "scope" value, Reddit's API uses a slight deviation
@@ -16,7 +15,7 @@ class RedditUserTestCase(TestCase):
         """
         self.assertEqual(
             settings.OAUTH_REDDIT_SCOPE,
-            re.replace(r'[, ]+', ',', settings.OAUTH_REDDIT_SCOPE)
+            re.replace(r"[, ]+", ",", settings.OAUTH_REDDIT_SCOPE),
         )
 
     def test_make_authorization_url(self):
@@ -24,10 +23,12 @@ class RedditUserTestCase(TestCase):
         Assert that the authorization URL is constructed with all valid
         parameters.
         """
-        mock_request = {'session': {}}
+        mock_request = {"session": {}}
         url = api.make_authorization_url(mock_request)
-        vals = ["scope=" + settings.OAUTH_REDDIT_SCOPE,
-                "client_id=" + settings.OAUTH_REDDIT_CLIENT_ID,
-                "redirect_uri=" + settings.OAUTH_REDDIT_REDIRECT_URI]
+        vals = [
+            "scope=" + settings.OAUTH_REDDIT_SCOPE,
+            "client_id=" + settings.OAUTH_REDDIT_CLIENT_ID,
+            "redirect_uri=" + settings.OAUTH_REDDIT_REDIRECT_URI,
+        ]
         for v in vals:
             self.assertContains(url, v)
