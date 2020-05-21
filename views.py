@@ -33,7 +33,7 @@ def reddit_callback_view(request):
 
         # This will authenticate an existing user and create a new user
         # if necessary.
-        user = authenticate(reddit_user=reddit_user['name'])
+        user = authenticate(request, reddit_user=reddit_user['name'])
 
         if user is None:
             # Return an 'invalid login' error message.

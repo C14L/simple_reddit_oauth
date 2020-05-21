@@ -14,7 +14,7 @@ from django.contrib.auth.backends import RemoteUserBackend
 
 class RedditBackend(RemoteUserBackend):
 
-    def authenticate(self, reddit_user):
+    def authenticate(self, request, reddit_user, **kwargs):
         user = None
         username = self.clean_username(reddit_user)
         UserModel = get_user_model()
